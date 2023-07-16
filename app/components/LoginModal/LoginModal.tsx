@@ -7,6 +7,7 @@ import { useWixClient } from '@app/hooks/useWixClient';
 import Cookies from 'js-cookie';
 import { WIX_REFRESH_TOKEN } from '@app/constants';
 import { LoginState } from '@wix/api-client';
+import Script from 'next/script';
 
 enum State {
   LOGIN = 'LOGIN',
@@ -73,9 +74,11 @@ export const LoginModal = () => {
         password,
       });
     } else {
+      const invisibleRecaptcha = await wixClient.auth.getRecaptchaToken();
       response = await wixClient.auth.register({
         email,
         password,
+        captchaTokens: { invisibleRecaptchaToken: invisibleRecaptcha },
         profile: { nickname: username },
       });
     }
@@ -134,6 +137,7 @@ export const LoginModal = () => {
 
   return (
     <React.Fragment>
+      <Script src={wixClient.auth.getRecaptchaScriptUrl()} />
       <Modal
         show={displayLoginModal}
         onClose={closeModal}
