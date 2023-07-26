@@ -7,7 +7,8 @@ import { useWixClient } from '@app/hooks/useWixClient';
 import Cookies from 'js-cookie';
 import { WIX_REFRESH_TOKEN } from '@app/constants';
 import { LoginState } from '@wix/api-client';
-import Script from 'next/script';
+// @ts-ignore
+import ReCAPTCHA from 'react-google-recaptcha-enterprise';
 
 enum State {
   LOGIN = 'LOGIN',
@@ -28,6 +29,9 @@ export const LoginModal = () => {
   const [pending, setPending] = React.useState({ state: false, message: '' });
   const [passwordInvalid, setPasswordInvalid] = React.useState(false);
   const [emailInvalid, setEmailInvalid] = React.useState(false);
+  const [captcha, setCaptcha] = React.useState('');
+
+  const captchaRef = React.useRef<ReCAPTCHA>(null);
 
   const closeModal = () => {
     setState(State.LOGIN);
@@ -48,6 +52,7 @@ export const LoginModal = () => {
 
   useEffect(() => {
     resetState();
+    captchaRef.current?.reset();
   }, [state]);
 
   const submit = async (event: React.FormEvent) => {
@@ -69,16 +74,17 @@ export const LoginModal = () => {
         verificationCode: code,
       });
     } else if (state === State.LOGIN) {
+      const invisible = await captchaRef.current.executeAsync();
       response = await wixClient.auth.login({
         email,
         password,
+        captchaTokens: { invisibleRecaptchaToken: invisible! },
       });
     } else {
-      const invisibleRecaptcha = await wixClient.auth.getRecaptchaToken();
       response = await wixClient.auth.register({
         email,
         password,
-        captchaTokens: { invisibleRecaptchaToken: invisibleRecaptcha },
+        captchaTokens: { recaptchaToken: captcha },
         profile: { nickname: username },
       });
     }
@@ -137,7 +143,6 @@ export const LoginModal = () => {
 
   return (
     <React.Fragment>
-      <Script src={wixClient.auth.getRecaptchaScriptUrl()} />
       <Modal
         show={displayLoginModal}
         onClose={closeModal}
@@ -250,14 +255,30 @@ export const LoginModal = () => {
                     </div>
                   ) : null}
                   {state === State.LOGIN ? (
-                    <div className="flex justify-between">
-                      <a
-                        onClick={() => setState(State.RESET_PASSWORD)}
-                        className="text-sm text-blue-700 hover:underline"
-                      >
-                        Forgot password?
-                      </a>
-                    </div>
+                    <>
+                      <div className="flex justify-between">
+                        <a
+                          onClick={() => setState(State.RESET_PASSWORD)}
+                          className="text-sm text-blue-700 hover:underline"
+                        >
+                          Forgot password?
+                        </a>
+                      </div>
+                      <ReCAPTCHA
+                        ref={captchaRef}
+                        isolated={true}
+                        size="invisible"
+                        sitekey="6LdoPaUfAAAAAJphvHoUoOob7mx0KDlXyXlgrx5v"
+                      />
+                    </>
+                  ) : null}
+                  {state === State.SIGNUP ? (
+                    <ReCAPTCHA
+                      isolated={true}
+                      size="normal"
+                      sitekey="6Ld0J8IcAAAAANyrnxzrRlX1xrrdXsOmsepUYosy"
+                      onChange={setCaptcha}
+                    />
                   ) : null}
                   <div className="w-full">
                     <Button
@@ -273,6 +294,7 @@ export const LoginModal = () => {
                       {loading ? <Spinner aria-label="Loading" /> : stateSubmit}
                     </Button>
                   </div>
+
                   {state !== State.RESET_PASSWORD &&
                   state !== State.EMAIL_VERIFICATION ? (
                     <div className="text-sm font-medium text-gray-500">
